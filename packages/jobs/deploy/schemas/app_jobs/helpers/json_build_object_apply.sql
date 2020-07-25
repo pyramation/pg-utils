@@ -8,7 +8,7 @@ CREATE FUNCTION app_jobs.json_build_object_apply (arguments text[])
 DECLARE
   arg text;
   _sql text;
-  _res text;
+  _res json;
   args text[];
 BEGIN
   _sql = 'SELECT json_build_object(';
