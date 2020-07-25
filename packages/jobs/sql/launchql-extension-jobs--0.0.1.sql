@@ -375,15 +375,6 @@ CREATE TRIGGER _100_update_jobs_modtime_tg
  FOR EACH ROW
  EXECUTE PROCEDURE app_jobs. tg_update_timestamps (  );
 
-CREATE FUNCTION app_jobs.tg_add_job_for_row (  ) RETURNS trigger AS $EOFCODE$
-BEGIN
-  PERFORM app_jobs.add_job(tg_argv[0], json_build_object('id', NEW.id));
-  RETURN NEW;
-END;
-$EOFCODE$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION app_jobs.tg_add_job_for_row IS E'Useful shortcut to create a job on insert or update. Pass the task name as the trigger argument, and the record id will automatically be available on the JSON payload.';
-
 CREATE FUNCTION app_jobs.trigger_job_with_fields (  ) RETURNS trigger AS $EOFCODE$
 DECLARE
   arg text;
@@ -401,13 +392,56 @@ BEGIN
         fn = TG_ARGV[i - 1];
       ELSE
         args = array_append(args, TG_ARGV[i - 1]);
-        EXECUTE format('SELECT ($1).%s::text', TG_ARGV[i - 1])
-        USING NEW INTO arg;
+        IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+          EXECUTE format('SELECT ($1).%s::text', TG_ARGV[i - 1])
+          USING NEW INTO arg;
+        END IF;
+        IF (TG_OP = 'DELETE') THEN
+          EXECUTE format('SELECT ($1).%s::text', TG_ARGV[i - 1])
+          USING OLD INTO arg;
+        END IF;
         args = array_append(args, arg);
       END IF;
     END LOOP;
   PERFORM
     app_jobs.add_job (fn, app_jobs.json_build_object_apply (args));
-  RETURN NEW;
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+    RETURN NEW;
+  END IF;
+  IF (TG_OP = 'DELETE') THEN
+    RETURN OLD;
+  END IF;
 END;
-$EOFCODE$ LANGUAGE plpgsql;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE;
+
+CREATE FUNCTION app_jobs.tg_add_job_with_row_id (  ) RETURNS trigger AS $EOFCODE$
+BEGIN
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+    PERFORM
+      app_jobs.add_job (tg_argv[0], json_build_object('id', NEW.id));
+    RETURN NEW;
+  END IF;
+  IF (TG_OP = 'DELETE') THEN
+    PERFORM
+      app_jobs.add_job (tg_argv[0], json_build_object('id', OLD.id));
+    RETURN OLD;
+  END IF;
+END;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE;
+
+COMMENT ON FUNCTION app_jobs.tg_add_job_with_row_id IS E'Useful shortcut to create a job on insert or update. Pass the task name as the trigger argument, and the record id will automatically be available on the JSON payload.';
+
+CREATE FUNCTION app_jobs.tg_add_job_with_row (  ) RETURNS trigger AS $EOFCODE$
+BEGIN
+  IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
+    PERFORM
+      app_jobs.add_job (TG_ARGV[0], to_json(NEW));
+    RETURN NEW;
+  END IF;
+  IF (TG_OP = 'DELETE') THEN
+    PERFORM
+      app_jobs.add_job (TG_ARGV[0], to_json(OLD));
+    RETURN OLD;
+  END IF;
+END;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE;
