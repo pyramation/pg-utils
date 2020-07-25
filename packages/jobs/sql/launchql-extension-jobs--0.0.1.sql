@@ -1,33 +1,56 @@
-\echo Use "CREATE EXTENSION launchql-extension-jobs" to load this file. 
-quit CREATE SCHEMA app_jobs;
+\echo Use "CREATE EXTENSION launchql-extension-jobs" to load this file. \quit
+CREATE SCHEMA app_jobs;
+
+GRANT USAGE ON SCHEMA app_jobs TO administrator;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA app_jobs 
+ GRANT EXECUTE ON FUNCTIONS  TO administrator;
+
+CREATE FUNCTION app_jobs.json_build_object_apply ( arguments text[] ) RETURNS json AS $EOFCODE$
+DECLARE
+  arg text;
+  _sql text;
+  _res text;
+  args text[];
+BEGIN
+  _sql = 'SELECT json_build_object(';
+  FOR arg IN
+  SELECT
+    unnest(arguments)
+    LOOP
+      args = array_append(args, format('''%s''', arg));
+    END LOOP;
+  _sql = _sql || format('%s);', array_to_string(args, ','));
+  EXECUTE _sql INTO _res;
+  RETURN _res;
+END;
+$EOFCODE$ LANGUAGE plpgsql;
 
 CREATE TABLE app_jobs.jobs (
-  id bigserial PRIMARY KEY,
-  queue_name text DEFAULT (public.gen_random_uuid ()::text),
-  task_identifier text NOT NULL,
-  payload json DEFAULT ('{}'::json) NOT NULL,
-  priority int DEFAULT (0) NOT NULL,
-  run_at pg_catalog.timestamptz DEFAULT (now()) NOT NULL,
-  attempts int DEFAULT (0) NOT NULL,
-  max_attempts int DEFAULT (25) NOT NULL,
-  last_error text,
-  key text,
-  locked_at pg_catalog.timestamptz,
-  locked_by text,
-  CONSTRAINT jobs_key_check CHECK (((length(KEY)) > (0))),
-  UNIQUE (KEY)
+ 	id bigserial PRIMARY KEY,
+	queue_name text DEFAULT ( public.gen_random_uuid()::text ),
+	task_identifier text NOT NULL,
+	payload json DEFAULT ( '{}'::json ) NOT NULL,
+	priority int DEFAULT ( 0 ) NOT NULL,
+	run_at pg_catalog.timestamptz DEFAULT ( now() ) NOT NULL,
+	attempts int DEFAULT ( 0 ) NOT NULL,
+	max_attempts int DEFAULT ( 25 ) NOT NULL,
+	last_error text,
+	key text,
+	locked_at pg_catalog.timestamptz,
+	locked_by text,
+	CONSTRAINT jobs_key_check CHECK ( ((length(key)) > (0)) ),
+	UNIQUE ( key ) 
 );
 
 CREATE TABLE app_jobs.job_queues (
-  queue_name text NOT NULL PRIMARY KEY,
-  job_count int DEFAULT (0) NOT NULL,
-  locked_at timestamptz,
-  locked_by text
+ 	queue_name text NOT NULL PRIMARY KEY,
+	job_count int DEFAULT ( 0 ) NOT NULL,
+	locked_at timestamptz,
+	locked_by text 
 );
 
-CREATE FUNCTION app_jobs.add_job (identifier text, payload json DEFAULT NULL, queue_name text DEFAULT NULL, run_at timestamptz DEFAULT NULL, max_attempts int DEFAULT NULL, job_key text DEFAULT NULL, priority int DEFAULT NULL)
-  RETURNS app_jobs.jobs
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.add_job ( identifier text, payload json DEFAULT NULL, queue_name text DEFAULT NULL, run_at timestamptz DEFAULT NULL, max_attempts int DEFAULT NULL, job_key text DEFAULT NULL, priority int DEFAULT NULL ) RETURNS app_jobs.jobs AS $EOFCODE$
 DECLARE
   v_job app_jobs.jobs;
 BEGIN
@@ -83,15 +106,9 @@ BEGIN
     * INTO v_job;
   RETURN v_job;
 END;
-$EOFCODE$
-LANGUAGE plpgsql
-VOLATILE
-SECURITY DEFINER;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
 
-CREATE FUNCTION app_jobs.complete_job (worker_id text, job_id bigint)
-  RETURNS app_jobs.jobs
-  LANGUAGE plpgsql
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.complete_job ( worker_id text, job_id bigint ) RETURNS app_jobs.jobs LANGUAGE plpgsql AS $EOFCODE$
 DECLARE
   v_row app_jobs.jobs;
 BEGIN
@@ -113,35 +130,24 @@ BEGIN
 END;
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.complete_jobs (job_ids bigint[])
-  RETURNS SETOF app_jobs.jobs
-  LANGUAGE sql
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.complete_jobs ( job_ids bigint[] ) RETURNS SETOF app_jobs.jobs LANGUAGE sql AS $EOFCODE$
   DELETE FROM app_jobs.jobs
   WHERE id = ANY (job_ids)
     AND (locked_by IS NULL
       OR locked_at < NOW() - interval '4 hours')
   RETURNING
     *;
-
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.do_notify ()
-  RETURNS TRIGGER
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.do_notify (  ) RETURNS trigger AS $EOFCODE$
 BEGIN
   PERFORM
     pg_notify(TG_ARGV[0], '');
   RETURN NEW;
 END;
-$EOFCODE$
-LANGUAGE plpgsql;
+$EOFCODE$ LANGUAGE plpgsql;
 
-CREATE FUNCTION app_jobs.fail_job (worker_id text, job_id bigint, error_message text)
-  RETURNS app_jobs.jobs
-  LANGUAGE plpgsql
-  STRICT
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.fail_job ( worker_id text, job_id bigint, error_message text ) RETURNS app_jobs.jobs LANGUAGE plpgsql STRICT AS $EOFCODE$
 DECLARE
   v_row app_jobs.jobs;
 BEGIN
@@ -171,10 +177,7 @@ BEGIN
 END;
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.get_job (worker_id text, task_identifiers text[] DEFAULT NULL, job_expiry interval DEFAULT '4 hours')
-  RETURNS app_jobs.jobs
-  LANGUAGE plpgsql
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.get_job ( worker_id text, task_identifiers text[] DEFAULT NULL, job_expiry interval DEFAULT '4 hours' ) RETURNS app_jobs.jobs LANGUAGE plpgsql AS $EOFCODE$
 DECLARE
   v_job_id bigint;
   v_queue_name text;
@@ -241,10 +244,7 @@ BEGIN
 END;
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.permanently_fail_jobs (job_ids bigint[], error_message text DEFAULT NULL::text)
-  RETURNS SETOF app_jobs.jobs
-  LANGUAGE sql
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.permanently_fail_jobs ( job_ids bigint[], error_message text DEFAULT NULL ) RETURNS SETOF app_jobs.jobs LANGUAGE sql AS $EOFCODE$
   UPDATE
     app_jobs.jobs
   SET
@@ -256,26 +256,17 @@ CREATE FUNCTION app_jobs.permanently_fail_jobs (job_ids bigint[], error_message 
       OR locked_at < NOW() - interval '4 hours')
   RETURNING
     *;
-
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.remove_job (job_key text)
-  RETURNS app_jobs.jobs
-  LANGUAGE sql
-  STRICT
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.remove_job ( job_key text ) RETURNS app_jobs.jobs LANGUAGE sql STRICT AS $EOFCODE$
   DELETE FROM app_jobs.jobs
   WHERE KEY = job_key
     AND locked_at IS NULL
   RETURNING
     *;
-
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.reschedule_jobs (job_ids bigint[], run_at pg_catalog.timestamptz DEFAULT NULL, priority int DEFAULT NULL, attempts int DEFAULT NULL, max_attempts int DEFAULT NULL)
-  RETURNS SETOF app_jobs.jobs
-  LANGUAGE sql
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.reschedule_jobs ( job_ids bigint[], run_at pg_catalog.timestamptz DEFAULT NULL, priority int DEFAULT NULL, attempts int DEFAULT NULL, max_attempts int DEFAULT NULL ) RETURNS SETOF app_jobs.jobs LANGUAGE sql AS $EOFCODE$
   UPDATE
     app_jobs.jobs
   SET
@@ -289,18 +280,15 @@ CREATE FUNCTION app_jobs.reschedule_jobs (job_ids bigint[], run_at pg_catalog.ti
       OR locked_at < NOW() - interval '4 hours')
   RETURNING
     *;
-
 $EOFCODE$;
 
 ALTER TABLE app_jobs.job_queues ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE app_jobs.jobs ENABLE ROW LEVEL SECURITY;
 
-CREATE INDEX priority_run_at_id_idx ON app_jobs.jobs (priority, run_at, id);
+CREATE INDEX priority_run_at_id_idx ON app_jobs.jobs ( priority, run_at, id );
 
-CREATE FUNCTION app_jobs.tg_decrease_job_queue_count ()
-  RETURNS TRIGGER
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.tg_decrease_job_queue_count (  ) RETURNS trigger AS $EOFCODE$
 DECLARE
   v_new_job_count int;
 BEGIN
@@ -319,25 +307,21 @@ BEGIN
   END IF;
   RETURN OLD;
 END;
-$EOFCODE$
-LANGUAGE plpgsql
-VOLATILE;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE;
 
-CREATE TRIGGER decrease_job_queue_count_on_delete
-  AFTER DELETE ON app_jobs.jobs
-  FOR EACH ROW
-  WHEN (old.queue_name IS NOT NULL)
-  EXECUTE PROCEDURE app_jobs. tg_decrease_job_queue_count ();
+CREATE TRIGGER decrease_job_queue_count_on_delete 
+ AFTER DELETE ON app_jobs.jobs 
+ FOR EACH ROW
+ WHEN ( old.queue_name IS NOT NULL ) 
+ EXECUTE PROCEDURE app_jobs. tg_decrease_job_queue_count (  );
 
-CREATE TRIGGER decrease_job_queue_count_on_update
-  AFTER UPDATE OF queue_name ON app_jobs.jobs
-  FOR EACH ROW
-  WHEN ((new.queue_name IS DISTINCT FROM old.queue_name AND old.queue_name IS NOT NULL))
-  EXECUTE PROCEDURE app_jobs. tg_decrease_job_queue_count ();
+CREATE TRIGGER decrease_job_queue_count_on_update 
+ AFTER UPDATE OF queue_name ON app_jobs.jobs 
+ FOR EACH ROW
+ WHEN ( (new.queue_name IS DISTINCT FROM old.queue_name AND old.queue_name IS NOT NULL) ) 
+ EXECUTE PROCEDURE app_jobs. tg_decrease_job_queue_count (  );
 
-CREATE FUNCTION app_jobs.tg_increase_job_queue_count ()
-  RETURNS TRIGGER
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.tg_increase_job_queue_count (  ) RETURNS trigger AS $EOFCODE$
 BEGIN
   INSERT INTO app_jobs.job_queues (queue_name, job_count)
     VALUES (NEW.queue_name, 1)
@@ -346,30 +330,26 @@ BEGIN
       job_count = job_queues.job_count + 1;
   RETURN NEW;
 END;
-$EOFCODE$
-LANGUAGE plpgsql
-VOLATILE;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE;
 
-CREATE TRIGGER _500_increase_job_queue_count_on_insert
-  AFTER INSERT ON app_jobs.jobs
-  FOR EACH ROW
-  WHEN (NEW.queue_name IS NOT NULL)
-  EXECUTE PROCEDURE app_jobs. tg_increase_job_queue_count ();
+CREATE TRIGGER _500_increase_job_queue_count_on_insert 
+ AFTER INSERT ON app_jobs.jobs 
+ FOR EACH ROW
+ WHEN ( new.queue_name IS NOT NULL ) 
+ EXECUTE PROCEDURE app_jobs. tg_increase_job_queue_count (  );
 
-CREATE TRIGGER _500_increase_job_queue_count_on_update
-  AFTER UPDATE OF queue_name ON app_jobs.jobs
-  FOR EACH ROW
-  WHEN ((NEW.queue_name IS DISTINCT FROM OLD.queue_name AND NEW.queue_name IS NOT NULL))
-  EXECUTE PROCEDURE app_jobs. tg_increase_job_queue_count ();
+CREATE TRIGGER _500_increase_job_queue_count_on_update 
+ AFTER UPDATE OF queue_name ON app_jobs.jobs 
+ FOR EACH ROW
+ WHEN ( (new.queue_name IS DISTINCT FROM old.queue_name AND new.queue_name IS NOT NULL) ) 
+ EXECUTE PROCEDURE app_jobs. tg_increase_job_queue_count (  );
 
-CREATE TRIGGER _900_notify_worker
-  AFTER INSERT ON app_jobs.jobs
-  FOR EACH ROW
-  EXECUTE PROCEDURE app_jobs. do_notify ('jobs:insert');
+CREATE TRIGGER _900_notify_worker 
+ AFTER INSERT ON app_jobs.jobs 
+ FOR EACH ROW
+ EXECUTE PROCEDURE app_jobs. do_notify ( 'jobs:insert' );
 
-CREATE FUNCTION app_jobs.tg_update_timestamps ()
-  RETURNS TRIGGER
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.tg_update_timestamps (  ) RETURNS trigger AS $EOFCODE$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     NEW.created_at = NOW();
@@ -380,36 +360,54 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$EOFCODE$
-LANGUAGE plpgsql;
+$EOFCODE$ LANGUAGE plpgsql;
 
-ALTER TABLE app_jobs.jobs
-  ADD COLUMN created_at timestamptz;
+ALTER TABLE app_jobs.jobs ADD COLUMN  created_at timestamptz;
 
-ALTER TABLE app_jobs.jobs
-  ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE app_jobs.jobs ALTER COLUMN created_at SET DEFAULT now();
 
-ALTER TABLE app_jobs.jobs
-  ADD COLUMN updated_at timestamptz;
+ALTER TABLE app_jobs.jobs ADD COLUMN  updated_at timestamptz;
 
-ALTER TABLE app_jobs.jobs
-  ALTER COLUMN updated_at SET DEFAULT now();
+ALTER TABLE app_jobs.jobs ALTER COLUMN updated_at SET DEFAULT now();
 
-CREATE TRIGGER _100_update_jobs_modtime_tg
-  BEFORE INSERT OR UPDATE ON app_jobs.jobs
-  FOR EACH ROW
-  EXECUTE PROCEDURE app_jobs. tg_update_timestamps ();
+CREATE TRIGGER _100_update_jobs_modtime_tg 
+ BEFORE INSERT OR UPDATE ON app_jobs.jobs 
+ FOR EACH ROW
+ EXECUTE PROCEDURE app_jobs. tg_update_timestamps (  );
 
-CREATE FUNCTION app_jobs.tg_add_job_for_row ()
-  RETURNS TRIGGER
-  AS $EOFCODE$
+CREATE FUNCTION app_jobs.tg_add_job_for_row (  ) RETURNS trigger AS $EOFCODE$
 BEGIN
-  PERFORM
-    app_jobs.add_job (tg_argv[0], json_build_object('id', NEW.id));
+  PERFORM app_jobs.add_job(tg_argv[0], json_build_object('id', NEW.id));
   RETURN NEW;
 END;
-$EOFCODE$
-LANGUAGE plpgsql;
+$EOFCODE$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION app_jobs.tg_add_job_for_row IS E'Useful shortcut to create a job on insert or update. Pass the task name as the trigger argument, and the record id will automatically be available on the JSON payload.';
 
+CREATE FUNCTION app_jobs.trigger_job_with_fields (  ) RETURNS trigger AS $EOFCODE$
+DECLARE
+  arg text;
+  fn text;
+  i int;
+  args text[];
+BEGIN
+  FOR i IN
+  SELECT
+    *
+  FROM
+    generate_series(1, TG_NARGS) g (i)
+    LOOP
+      IF (i = 1) THEN
+        fn = TG_ARGV[i - 1];
+      ELSE
+        args = array_append(args, TG_ARGV[i - 1]);
+        EXECUTE format('SELECT ($1).%s::text', TG_ARGV[i - 1])
+        USING NEW INTO arg;
+        args = array_append(args, arg);
+      END IF;
+    END LOOP;
+  PERFORM
+    app_jobs.add_job (fn, app_jobs.json_build_object_apply (args));
+  RETURN NEW;
+END;
+$EOFCODE$ LANGUAGE plpgsql;
