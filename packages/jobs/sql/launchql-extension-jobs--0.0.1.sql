@@ -1,5 +1,5 @@
 \echo Use "CREATE EXTENSION launchql-extension-jobs" to load this file. \quit
-CREATE SCHEMA app_jobs;
+CREATE SCHEMA IF NOT EXISTS app_jobs;
 
 GRANT USAGE ON SCHEMA app_jobs TO administrator;
 
