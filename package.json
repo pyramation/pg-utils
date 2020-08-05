@@ -5,12 +5,7 @@
     "build": "lerna run prepare --parallel",
     "bootstrap": "lerna bootstrap --use-workspaces"
   },
-  "dependencies": {
-    "launchql-extension-defaults": "latest",
-    "launchql-extension-default-roles": "latest",
-    "launchql-extension-verify": "latest",
-    "launchql-extension-utils": "latest"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@babel/cli": "7.10.4",
     "@babel/core": "7.10.4",

@@ -2,7 +2,7 @@
 %project=launchql-extension-jobs
 %uri=launchql-extension-jobs
   
-schemas/app_jobs/schema [launchql-extension-defaults:defaults/public launchql-extension-verify:procedures/verify_view launchql-extension-utils:procedures/tg_update_timestamps] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/schema
+schemas/app_jobs/schema 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/schema
 schemas/app_jobs/helpers/json_build_object_apply [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/helpers/json_build_object_apply
 schemas/app_jobs/tables/jobs/table [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/jobs/table
 schemas/app_jobs/tables/job_queues/table [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/job_queues/table
@@ -14,6 +14,8 @@ schemas/app_jobs/procedures/fail_job [schemas/app_jobs/schema schemas/app_jobs/t
 schemas/app_jobs/procedures/get_job [schemas/app_jobs/schema schemas/app_jobs/tables/job_queues/table schemas/app_jobs/tables/jobs/table] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/procedures/get_job
 schemas/app_jobs/procedures/permanently_fail_jobs [schemas/app_jobs/schema schemas/app_jobs/tables/job_queues/table schemas/app_jobs/tables/jobs/table] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/procedures/permanently_fail_jobs
 schemas/app_jobs/procedures/reschedule_jobs [schemas/app_jobs/schema schemas/app_jobs/tables/jobs/table] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/procedures/reschedule_jobs
+schemas/app_jobs/tables/scheduled_jobs/table [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/scheduled_jobs/table
+schemas/app_jobs/procedures/run_scheduled_job [schemas/app_jobs/schema schemas/app_jobs/tables/jobs/table schemas/app_jobs/tables/scheduled_jobs/table] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/procedures/run_scheduled_job
 schemas/app_jobs/tables/job_queues/alterations/enable_row_level_security [schemas/app_jobs/schema schemas/app_jobs/tables/job_queues/table] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/job_queues/alterations/enable_row_level_security
 schemas/app_jobs/tables/jobs/alterations/enable_row_level_security [schemas/app_jobs/schema schemas/app_jobs/tables/jobs/table] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/jobs/alterations/enable_row_level_security
 schemas/app_jobs/tables/jobs/indexes/priority_run_at_id_idx [schemas/app_jobs/schema schemas/app_jobs/tables/jobs/table] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/jobs/indexes/priority_run_at_id_idx
@@ -22,7 +24,6 @@ schemas/app_jobs/tables/jobs/triggers/increase_job_queue_count [schemas/app_jobs
 schemas/app_jobs/tables/jobs/triggers/notify_worker [schemas/app_jobs/schema schemas/app_jobs/tables/jobs/table schemas/app_jobs/procedures/do_notify schemas/app_jobs/tables/jobs/triggers/increase_job_queue_count] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/jobs/triggers/notify_worker
 schemas/app_jobs/triggers/tg_update_timestamps [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/triggers/tg_update_timestamps
 schemas/app_jobs/tables/jobs/triggers/timestamps [schemas/app_jobs/schema schemas/app_jobs/tables/jobs/table schemas/app_jobs/triggers/tg_update_timestamps] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/jobs/triggers/timestamps
-schemas/app_jobs/tables/scheduled_jobs/table [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/tables/scheduled_jobs/table
 schemas/app_jobs/triggers/tg_add_job_with_fields [schemas/app_jobs/schema schemas/app_jobs/helpers/json_build_object_apply] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/triggers/tg_add_job_with_fields
 schemas/app_jobs/triggers/tg_add_job_with_row_id [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/triggers/tg_add_job_with_row_id
 schemas/app_jobs/triggers/tg_add_job_with_row [schemas/app_jobs/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/app_jobs/triggers/tg_add_job_with_row

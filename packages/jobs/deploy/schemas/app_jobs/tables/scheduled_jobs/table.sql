@@ -11,9 +11,11 @@ CREATE TABLE app_jobs.scheduled_jobs (
   run_at timestamptz DEFAULT now() NOT NULL,
   max_attempts integer DEFAULT 25 NOT NULL,
   -- date, recurrence rule
-  schedule_type int NOT NULL DEFAULT 0,
-  schedule_value text NOT NULL,
-  last_scheduled timestamptz
+  schedule_info json NOT NULL,
+  last_scheduled timestamptz,
+  CHECK (length(task_identifier) < 127),
+  CHECK (max_attempts > 0),
+  CHECK (length(queue_name) < 127)
 );
 COMMIT;
 

@@ -3,7 +3,8 @@
 -- requires: schemas/app_jobs/tables/jobs/table
 
 BEGIN;
-CREATE FUNCTION app_jobs.reschedule_jobs (job_ids bigint[], run_at timestamp WITH time zone DEFAULT NULL, priority integer DEFAULT NULL, attempts integer DEFAULT NULL, max_attempts integer DEFAULT NULL)
+-- NOTE this should be renamed to reset_jobs to avoid confusion of scheduled jobs
+CREATE FUNCTION app_jobs.reschedule_jobs (job_ids bigint[], run_at timestamptz DEFAULT NULL, priority integer DEFAULT NULL, attempts integer DEFAULT NULL, max_attempts integer DEFAULT NULL)
   RETURNS SETOF app_jobs.jobs
   LANGUAGE sql
   AS $$
