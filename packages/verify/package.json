@@ -1,6 +1,6 @@
 {
   "name": "launchql-extension-verify",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "PostgreSQL verification utilities",
   "author": "Dan Lynch <pyramation@gmail.com>",
   "dependencies": {
