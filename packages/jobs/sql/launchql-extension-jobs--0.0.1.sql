@@ -32,15 +32,12 @@ CREATE TABLE app_jobs.jobs (
 	task_identifier text NOT NULL,
 	payload json DEFAULT ( '{}'::json ) NOT NULL,
 	priority int DEFAULT ( 0 ) NOT NULL,
-	run_at pg_catalog.timestamptz DEFAULT ( now() ) NOT NULL,
+	run_at timestamptz DEFAULT ( now() ) NOT NULL,
 	attempts int DEFAULT ( 0 ) NOT NULL,
 	max_attempts int DEFAULT ( 25 ) NOT NULL,
 	last_error text,
-	key text,
-	locked_at pg_catalog.timestamptz,
-	locked_by text,
-	CONSTRAINT jobs_key_check CHECK ( ((length(key)) > (0)) ),
-	UNIQUE ( key ) 
+	locked_at timestamptz,
+	locked_by text 
 );
 
 CREATE TABLE app_jobs.job_queues (
@@ -50,7 +47,7 @@ CREATE TABLE app_jobs.job_queues (
 	locked_by text 
 );
 
-CREATE FUNCTION app_jobs.add_job ( identifier text, payload json DEFAULT NULL, queue_name text DEFAULT NULL, run_at timestamptz DEFAULT NULL, max_attempts int DEFAULT NULL, job_key text DEFAULT NULL, priority int DEFAULT NULL ) RETURNS app_jobs.jobs AS $EOFCODE$
+CREATE FUNCTION app_jobs.add_job ( identifier text, payload json DEFAULT NULL, queue_name text DEFAULT NULL, run_at timestamptz DEFAULT NULL, max_attempts int DEFAULT NULL, priority int DEFAULT NULL ) RETURNS app_jobs.jobs AS $EOFCODE$
 DECLARE
   v_job app_jobs.jobs;
 BEGIN
@@ -63,45 +60,12 @@ BEGIN
     RAISE exception 'Job queue name is too long (max length: 128).'
       USING errcode = 'GWBQN';
   END IF;
-  IF job_key IS NOT NULL AND length(job_key) > 512 THEN
-    RAISE exception 'Job key is too long (max length: 512).'
-      USING errcode = 'GWBJK';
-  END IF;
   IF max_attempts < 1 THEN
     RAISE exception 'Job maximum attempts must be at least 1'
       USING errcode = 'GWBMA';
   END IF;
-  IF job_key IS NOT NULL THEN
-    -- Upsert job
-    INSERT INTO app_jobs.jobs (task_identifier, payload, queue_name, run_at, max_attempts, KEY, priority)
-      VALUES (identifier, coalesce(payload, '{}'::json), queue_name, coalesce(run_at, now()), coalesce(max_attempts, 25), job_key, coalesce(priority, 0))
-    ON CONFLICT (KEY)
-      DO UPDATE SET
-        task_identifier = excluded.task_identifier, payload = excluded.payload, queue_name = excluded.queue_name, max_attempts = excluded.max_attempts, run_at = excluded.run_at, priority = excluded.priority,
-        -- always reset error/retry state
-        attempts = 0, last_error = NULL
-      WHERE
-        jobs.locked_at IS NULL
-      RETURNING
-        * INTO v_job;
-    -- If upsert succeeded (insert or update), return early
-    IF NOT (v_job IS NULL) THEN
-      RETURN v_job;
-    END IF;
-    -- Upsert failed -> there must be an existing job that is locked. Remove
-    -- existing key to allow a new one to be inserted, and prevent any
-    -- subsequent retries by bumping attempts to the max allowed.
-    UPDATE
-      app_jobs.jobs
-    SET
-      KEY = NULL,
-      attempts = jobs.max_attempts
-    WHERE
-      KEY = job_key;
-  END IF;
-  -- insert the new job. Assume no conflicts due to the update above
-  INSERT INTO app_jobs.jobs (task_identifier, payload, queue_name, run_at, max_attempts, KEY, priority)
-    VALUES (identifier, coalesce(payload, '{}'::json), queue_name, coalesce(run_at, now()), coalesce(max_attempts, 25), job_key, coalesce(priority, 0))
+  INSERT INTO app_jobs.jobs (task_identifier, payload, queue_name, run_at, max_attempts, priority)
+    VALUES (identifier, coalesce(payload, '{}'::json), queue_name, coalesce(run_at, now()), coalesce(max_attempts, 25), coalesce(priority, 0))
   RETURNING
     * INTO v_job;
   RETURN v_job;
@@ -258,14 +222,6 @@ CREATE FUNCTION app_jobs.permanently_fail_jobs ( job_ids bigint[], error_message
     *;
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.remove_job ( job_key text ) RETURNS app_jobs.jobs LANGUAGE sql STRICT AS $EOFCODE$
-  DELETE FROM app_jobs.jobs
-  WHERE KEY = job_key
-    AND locked_at IS NULL
-  RETURNING
-    *;
-$EOFCODE$;
-
 CREATE FUNCTION app_jobs.reschedule_jobs ( job_ids bigint[], run_at pg_catalog.timestamptz DEFAULT NULL, priority int DEFAULT NULL, attempts int DEFAULT NULL, max_attempts int DEFAULT NULL ) RETURNS SETOF app_jobs.jobs LANGUAGE sql AS $EOFCODE$
   UPDATE
     app_jobs.jobs
@@ -374,6 +330,19 @@ CREATE TRIGGER _100_update_jobs_modtime_tg
  BEFORE INSERT OR UPDATE ON app_jobs.jobs 
  FOR EACH ROW
  EXECUTE PROCEDURE app_jobs. tg_update_timestamps (  );
+
+CREATE TABLE app_jobs.scheduled_jobs (
+ 	id bigserial PRIMARY KEY,
+	queue_name text DEFAULT ( public.gen_random_uuid()::text ),
+	task_identifier text NOT NULL,
+	payload json DEFAULT ( '{}'::json ) NOT NULL,
+	priority int DEFAULT ( 0 ) NOT NULL,
+	run_at timestamptz DEFAULT ( now() ) NOT NULL,
+	max_attempts int DEFAULT ( 25 ) NOT NULL,
+	schedule_type int NOT NULL DEFAULT ( 0 ),
+	schedule_value text NOT NULL,
+	last_scheduled timestamptz 
+);
 
 CREATE FUNCTION app_jobs.trigger_job_with_fields (  ) RETURNS trigger AS $EOFCODE$
 DECLARE
