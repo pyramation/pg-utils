@@ -366,6 +366,11 @@ CREATE TRIGGER _100_update_jobs_modtime_tg
  FOR EACH ROW
  EXECUTE PROCEDURE app_jobs. tg_update_timestamps (  );
 
+CREATE TRIGGER _900_notify_scheduled_job 
+ AFTER INSERT ON app_jobs.scheduled_jobs 
+ FOR EACH ROW
+ EXECUTE PROCEDURE app_jobs. do_notify ( 'scheduled_jobs:insert' );
+
 CREATE FUNCTION app_jobs.trigger_job_with_fields (  ) RETURNS trigger AS $EOFCODE$
 DECLARE
   arg text;
