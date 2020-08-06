@@ -8,14 +8,16 @@ CREATE TABLE app_jobs.scheduled_jobs (
   task_identifier text NOT NULL,
   payload json DEFAULT '{}' ::json NOT NULL,
   priority integer DEFAULT 0 NOT NULL,
-  run_at timestamptz DEFAULT now() NOT NULL,
   max_attempts integer DEFAULT 25 NOT NULL,
-  -- date, recurrence rule
+  locked_at timestamptz,
+  locked_by text,
   schedule_info json NOT NULL,
   last_scheduled timestamptz,
+  last_scheduled_id bigint,
   CHECK (length(task_identifier) < 127),
   CHECK (max_attempts > 0),
-  CHECK (length(queue_name) < 127)
+  CHECK (length(queue_name) < 127),
+  CHECK (length(locked_by) > 3)
 );
 COMMIT;
 

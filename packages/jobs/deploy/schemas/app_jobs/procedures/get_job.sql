@@ -14,7 +14,7 @@ DECLARE
   v_row app_jobs.jobs;
   v_now timestamptz = now();
 BEGIN
-  IF worker_id IS NULL OR length(worker_id) < 10 THEN
+  IF worker_id IS NULL THEN
     RAISE exception 'INVALID_WORKER_ID';
   END IF;
   SELECT

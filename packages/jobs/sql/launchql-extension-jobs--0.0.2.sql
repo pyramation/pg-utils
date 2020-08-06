@@ -40,7 +40,8 @@ CREATE TABLE app_jobs.jobs (
 	locked_by text,
 	CHECK ( ((length(task_identifier)) < (127)) ),
 	CHECK ( ((max_attempts) > (0)) ),
-	CHECK ( ((length(queue_name)) < (127)) ) 
+	CHECK ( ((length(queue_name)) < (127)) ),
+	CHECK ( ((length(locked_by)) > (3)) ) 
 );
 
 CREATE TABLE app_jobs.job_queues (
@@ -138,7 +139,7 @@ DECLARE
   v_row app_jobs.jobs;
   v_now timestamptz = now();
 BEGIN
-  IF worker_id IS NULL OR length(worker_id) < 10 THEN
+  IF worker_id IS NULL THEN
     RAISE exception 'INVALID_WORKER_ID';
   END IF;
   SELECT
@@ -163,8 +164,7 @@ BEGIN
           SKIP LOCKED))
     AND run_at <= v_now
     AND attempts < max_attempts
-    AND (task_identifiers IS NULL
-      OR task_identifier = ANY (task_identifiers))
+    AND (task_identifier = ANY (task_identifiers))
   ORDER BY
     priority ASC,
     run_at ASC,
@@ -190,6 +190,57 @@ BEGIN
     attempts = attempts + 1,
     locked_by = worker_id,
     locked_at = v_now
+  WHERE
+    id = v_job_id
+  RETURNING
+    * INTO v_row;
+  RETURN v_row;
+END;
+$EOFCODE$;
+
+CREATE TABLE app_jobs.scheduled_jobs (
+ 	id bigserial PRIMARY KEY,
+	queue_name text DEFAULT ( public.gen_random_uuid()::text ),
+	task_identifier text NOT NULL,
+	payload json DEFAULT ( '{}'::json ) NOT NULL,
+	priority int DEFAULT ( 0 ) NOT NULL,
+	run_at timestamptz DEFAULT ( now() ) NOT NULL,
+	max_attempts int DEFAULT ( 25 ) NOT NULL,
+	schedule_info json NOT NULL,
+	last_scheduled timestamptz,
+	CHECK ( ((length(task_identifier)) < (127)) ),
+	CHECK ( ((max_attempts) > (0)) ),
+	CHECK ( ((length(queue_name)) < (127)) ) 
+);
+
+CREATE FUNCTION app_jobs.get_scheduled_job ( worker_id text, task_identifiers text[] DEFAULT NULL ) RETURNS app_jobs.scheduled_jobs LANGUAGE plpgsql AS $EOFCODE$
+DECLARE
+  v_job_id bigint;
+  v_row app_jobs.scheduled_jobs;
+BEGIN
+  IF worker_id IS NULL THEN
+    RAISE exception 'INVALID_WORKER_ID';
+  END IF;
+  SELECT
+    scheduled_jobs.id INTO v_job_id
+  FROM
+    app_jobs.scheduled_jobs
+  WHERE (scheduled_jobs.locked_at IS NULL)
+    AND (scheduled_jobs.task_identifier = ANY (task_identifiers))
+  ORDER BY
+    priority ASC,
+    id ASC
+  LIMIT 1
+  FOR UPDATE
+    SKIP LOCKED;
+  IF v_job_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+  UPDATE
+    app_jobs.scheduled_jobs
+  SET
+    locked_by = worker_id,
+    locked_at = NOW()
   WHERE
     id = v_job_id
   RETURNING
@@ -227,21 +278,6 @@ CREATE FUNCTION app_jobs.reschedule_jobs ( job_ids bigint[], run_at timestamptz 
   RETURNING
     *;
 $EOFCODE$;
-
-CREATE TABLE app_jobs.scheduled_jobs (
- 	id bigserial PRIMARY KEY,
-	queue_name text DEFAULT ( public.gen_random_uuid()::text ),
-	task_identifier text NOT NULL,
-	payload json DEFAULT ( '{}'::json ) NOT NULL,
-	priority int DEFAULT ( 0 ) NOT NULL,
-	run_at timestamptz DEFAULT ( now() ) NOT NULL,
-	max_attempts int DEFAULT ( 25 ) NOT NULL,
-	schedule_info json NOT NULL,
-	last_scheduled timestamptz,
-	CHECK ( ((length(task_identifier)) < (127)) ),
-	CHECK ( ((max_attempts) > (0)) ),
-	CHECK ( ((length(queue_name)) < (127)) ) 
-);
 
 CREATE FUNCTION app_jobs.run_scheduled_job ( id bigint ) RETURNS app_jobs.jobs AS $EOFCODE$
 DECLARE
@@ -365,6 +401,8 @@ CREATE TRIGGER _100_update_jobs_modtime_tg
  BEFORE INSERT OR UPDATE ON app_jobs.jobs 
  FOR EACH ROW
  EXECUTE PROCEDURE app_jobs. tg_update_timestamps (  );
+
+CREATE INDEX scheduled_jobs_priority_id_idx ON app_jobs.scheduled_jobs ( priority, id );
 
 CREATE TRIGGER _900_notify_scheduled_job 
  AFTER INSERT ON app_jobs.scheduled_jobs 
