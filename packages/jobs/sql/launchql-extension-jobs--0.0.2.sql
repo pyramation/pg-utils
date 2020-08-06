@@ -164,7 +164,8 @@ BEGIN
           SKIP LOCKED))
     AND run_at <= v_now
     AND attempts < max_attempts
-    AND (task_identifier = ANY (task_identifiers))
+    AND (task_identifiers IS NULL
+      OR task_identifier = ANY (task_identifiers))
   ORDER BY
     priority ASC,
     run_at ASC,
@@ -204,13 +205,16 @@ CREATE TABLE app_jobs.scheduled_jobs (
 	task_identifier text NOT NULL,
 	payload json DEFAULT ( '{}'::json ) NOT NULL,
 	priority int DEFAULT ( 0 ) NOT NULL,
-	run_at timestamptz DEFAULT ( now() ) NOT NULL,
 	max_attempts int DEFAULT ( 25 ) NOT NULL,
+	locked_at timestamptz,
+	locked_by text,
 	schedule_info json NOT NULL,
 	last_scheduled timestamptz,
+	last_scheduled_id bigint,
 	CHECK ( ((length(task_identifier)) < (127)) ),
 	CHECK ( ((max_attempts) > (0)) ),
-	CHECK ( ((length(queue_name)) < (127)) ) 
+	CHECK ( ((length(queue_name)) < (127)) ),
+	CHECK ( ((length(locked_by)) > (3)) ) 
 );
 
 CREATE FUNCTION app_jobs.get_scheduled_job ( worker_id text, task_identifiers text[] DEFAULT NULL ) RETURNS app_jobs.scheduled_jobs LANGUAGE plpgsql AS $EOFCODE$
@@ -226,7 +230,8 @@ BEGIN
   FROM
     app_jobs.scheduled_jobs
   WHERE (scheduled_jobs.locked_at IS NULL)
-    AND (scheduled_jobs.task_identifier = ANY (task_identifiers))
+    AND (task_identifiers IS NULL
+      OR task_identifier = ANY (task_identifiers))
   ORDER BY
     priority ASC,
     id ASC
@@ -279,19 +284,34 @@ CREATE FUNCTION app_jobs.reschedule_jobs ( job_ids bigint[], run_at timestamptz 
     *;
 $EOFCODE$;
 
-CREATE FUNCTION app_jobs.run_scheduled_job ( id bigint ) RETURNS app_jobs.jobs AS $EOFCODE$
+CREATE FUNCTION app_jobs.run_scheduled_job ( id bigint, job_expiry interval DEFAULT '1 hours' ) RETURNS app_jobs.jobs AS $EOFCODE$
 DECLARE
-  sj app_jobs.scheduled_jobs;
   j app_jobs.jobs;
+  last_id bigint;
+  lkd_by text;
 BEGIN
-  UPDATE
-    app_jobs.scheduled_jobs ajsj
-  SET
-    last_scheduled = NOW()
+  -- check last scheduled
+  SELECT
+    last_scheduled_id
+  FROM
+    app_jobs.scheduled_jobs s
   WHERE
-    ajsj.id = run_scheduled_job.id
-  RETURNING
-    * INTO sj;
+    s.id = run_scheduled_job.id INTO last_id;
+  -- if it's been scheduled check if it's been run
+  IF (last_id IS NOT NULL) THEN
+    SELECT
+      locked_by
+    FROM
+      app_jobs.jobs js
+    WHERE
+      js.id = last_id
+      AND (js.locked_at IS NULL
+        OR js.locked_at < (NOW() - job_expiry)) INTO lkd_by;
+    IF (FOUND) THEN
+      RAISE EXCEPTION 'ALREADY_SCHEDULED';
+    END IF;
+  END IF;
+  -- insert new job
   INSERT INTO app_jobs.jobs (queue_name, task_identifier, payload, priority, max_attempts)
   SELECT
     queue_name,
@@ -300,11 +320,19 @@ BEGIN
     priority,
     max_attempts
   FROM
-    app_jobs.scheduled_jobs ajsj
+    app_jobs.scheduled_jobs s
   WHERE
-    ajsj.id = run_scheduled_job.id
+    s.id = run_scheduled_job.id
   RETURNING
     * INTO j;
+  -- update the scheduled job
+  UPDATE
+    app_jobs.scheduled_jobs s
+  SET
+    last_scheduled = NOW(),
+    last_scheduled_id = j.id
+  WHERE
+    s.id = run_scheduled_job.id;
   RETURN j;
 END;
 $EOFCODE$ LANGUAGE plpgsql VOLATILE;
