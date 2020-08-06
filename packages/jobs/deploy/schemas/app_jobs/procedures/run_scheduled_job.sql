@@ -27,8 +27,10 @@ BEGIN
       app_jobs.jobs js
     WHERE
       js.id = last_id
-      AND (js.locked_at IS NULL
-        OR js.locked_at < (NOW() - job_expiry)) INTO lkd_by;
+      AND (js.locked_at IS NULL -- never been run
+        OR js.locked_at >= (NOW() - job_expiry)
+        -- still running within a safe interval
+) INTO lkd_by;
     IF (FOUND) THEN
       RAISE EXCEPTION 'ALREADY_SCHEDULED';
     END IF;
