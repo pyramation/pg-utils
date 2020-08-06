@@ -268,6 +268,43 @@ CREATE FUNCTION app_jobs.permanently_fail_jobs ( job_ids bigint[], error_message
     *;
 $EOFCODE$;
 
+CREATE FUNCTION app_jobs.release_jobs ( worker_id text ) RETURNS void AS $EOFCODE$
+DECLARE
+BEGIN
+  -- clear the job
+  UPDATE
+    app_jobs.jobs
+  SET
+    locked_at = NULL,
+    locked_by = NULL,
+    attempts = GREATEST (attempts - 1, 0)
+  WHERE
+    locked_by = worker_id;
+  -- clear the queue
+  UPDATE
+    app_jobs.job_queues
+  SET
+    locked_at = NULL,
+    locked_by = NULL
+  WHERE
+    locked_by = worker_id;
+END;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE;
+
+CREATE FUNCTION app_jobs.release_scheduled_jobs ( worker_id text ) RETURNS void AS $EOFCODE$
+DECLARE
+BEGIN
+  -- clear the scheduled job
+  UPDATE
+    app_jobs.scheduled_jobs
+  SET
+    locked_at = NULL,
+    locked_by = NULL
+  WHERE
+    locked_by = worker_id;
+END;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE;
+
 CREATE FUNCTION app_jobs.reschedule_jobs ( job_ids bigint[], run_at timestamptz DEFAULT NULL, priority int DEFAULT NULL, attempts int DEFAULT NULL, max_attempts int DEFAULT NULL ) RETURNS SETOF app_jobs.jobs LANGUAGE sql AS $EOFCODE$
   UPDATE
     app_jobs.jobs
@@ -339,7 +376,11 @@ $EOFCODE$ LANGUAGE plpgsql VOLATILE;
 
 ALTER TABLE app_jobs.job_queues ENABLE ROW LEVEL SECURITY;
 
+CREATE INDEX job_queues_locked_by_idx ON app_jobs.job_queues ( locked_by );
+
 ALTER TABLE app_jobs.jobs ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX jobs_locked_by_idx ON app_jobs.jobs ( locked_by );
 
 CREATE INDEX priority_run_at_id_idx ON app_jobs.jobs ( priority, run_at, id );
 
@@ -429,6 +470,8 @@ CREATE TRIGGER _100_update_jobs_modtime_tg
  BEFORE INSERT OR UPDATE ON app_jobs.jobs 
  FOR EACH ROW
  EXECUTE PROCEDURE app_jobs. tg_update_timestamps (  );
+
+CREATE INDEX scheduled_jobs_locked_by_idx ON app_jobs.scheduled_jobs ( locked_by );
 
 CREATE INDEX scheduled_jobs_priority_id_idx ON app_jobs.scheduled_jobs ( priority, id );
 
