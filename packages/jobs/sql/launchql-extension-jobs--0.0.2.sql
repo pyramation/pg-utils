@@ -291,17 +291,19 @@ BEGIN
 END;
 $EOFCODE$ LANGUAGE plpgsql VOLATILE;
 
-CREATE FUNCTION app_jobs.release_scheduled_jobs ( worker_id text ) RETURNS void AS $EOFCODE$
+CREATE FUNCTION app_jobs.release_scheduled_jobs ( worker_id text, ids bigint[] DEFAULT NULL ) RETURNS void AS $EOFCODE$
 DECLARE
 BEGIN
   -- clear the scheduled job
   UPDATE
-    app_jobs.scheduled_jobs
+    app_jobs.scheduled_jobs s
   SET
     locked_at = NULL,
     locked_by = NULL
   WHERE
-    locked_by = worker_id;
+    locked_by = worker_id
+    AND (ids IS NULL
+      OR s.id = ANY (ids));
 END;
 $EOFCODE$ LANGUAGE plpgsql VOLATILE;
 
@@ -342,8 +344,10 @@ BEGIN
       app_jobs.jobs js
     WHERE
       js.id = last_id
-      AND (js.locked_at IS NULL
-        OR js.locked_at < (NOW() - job_expiry)) INTO lkd_by;
+      AND (js.locked_at IS NULL -- never been run
+        OR js.locked_at >= (NOW() - job_expiry)
+        -- still running within a safe interval
+) INTO lkd_by;
     IF (FOUND) THEN
       RAISE EXCEPTION 'ALREADY_SCHEDULED';
     END IF;
@@ -517,7 +521,7 @@ BEGIN
     RETURN OLD;
   END IF;
 END;
-$EOFCODE$ LANGUAGE plpgsql VOLATILE;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
 
 CREATE FUNCTION app_jobs.tg_add_job_with_row_id (  ) RETURNS trigger AS $EOFCODE$
 BEGIN
@@ -532,7 +536,7 @@ BEGIN
     RETURN OLD;
   END IF;
 END;
-$EOFCODE$ LANGUAGE plpgsql VOLATILE;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
 
 COMMENT ON FUNCTION app_jobs.tg_add_job_with_row_id IS E'Useful shortcut to create a job on insert or update. Pass the task name as the trigger argument, and the record id will automatically be available on the JSON payload.';
 
@@ -549,4 +553,6 @@ BEGIN
     RETURN OLD;
   END IF;
 END;
-$EOFCODE$ LANGUAGE plpgsql VOLATILE;
+$EOFCODE$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
+
+COMMENT ON FUNCTION app_jobs.tg_add_job_with_row IS E'Useful shortcut to create a job on insert or update. Pass the task name as the trigger argument, and the record data will automatically be available on the JSON payload.';

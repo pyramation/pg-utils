@@ -19,7 +19,8 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql
-VOLATILE;
+VOLATILE
+SECURITY DEFINER;
 COMMENT ON FUNCTION app_jobs.tg_add_job_with_row_id IS E'Useful shortcut to create a job on insert or update. Pass the task name as the trigger argument, and the record id will automatically be available on the JSON payload.';
 COMMIT;
 
