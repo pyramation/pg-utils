@@ -1,0 +1,9 @@
+%syntax-version=1.0.0
+%project=types
+%uri=types
+  
+schemas/public/schema 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/public/schema
+schemas/public/domains/email [schemas/public/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/public/domains/email
+schemas/public/domains/hostname [schemas/public/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/public/domains/hostname
+schemas/public/domains/url [schemas/public/schema] 2017-08-11T08:11:51Z skitch <skitch@5b0c196eeb62> # add schemas/public/domains/url
+schemas/public/types/url [schemas/public/schema] 2020-08-28T23:01:41Z Dan Lynch <dlynch@Dans-MBP-3> # add schemas/public/types/url
