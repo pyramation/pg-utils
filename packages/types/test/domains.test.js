@@ -46,6 +46,26 @@ const invalidUrls = [
   'http://.www.foo.bar./'
 ];
 
+const validAttachments = [
+  {
+    url: 'http://www.foo.bar/some.jpg',
+    mime: 'image/jpg'
+  },
+  {
+    url: 'https://foo.bar/some.PNG',
+    mime: 'image/jpg'
+  }
+];
+
+const invalidAttachments = [
+  {
+    url: 'hi there'
+  },
+  {
+    url: 'https://foo.bar/some.png'
+  }
+];
+
 let teardown, db, conn;
 let d;
 const objs = {};
@@ -58,6 +78,8 @@ beforeAll(async () => {
 CREATE TABLE customers (
   id serial,
   url url,
+  image image,
+  attachment attachment,
   domain hostname,
   email email 
 );
@@ -67,6 +89,32 @@ afterAll(async () => {
   await teardown();
 });
 describe('types', () => {
+  it('valid attachment and image', async () => {
+    for (let i = 0; i < validAttachments.length; i++) {
+      const value = validAttachments[i];
+      await db.any(`INSERT INTO customers (image) VALUES ($1::json);`, [value]);
+      await db.any(`INSERT INTO customers (attachment) VALUES ($1::json);`, [value]);
+    }
+  });
+  it('invalid attachment and image', async () => {
+    for (let i = 0; i < invalidAttachments.length; i++) {
+      const value = invalidAttachments[i];
+      let failed = false;
+      try {
+        await db.any(`INSERT INTO customers (attachment) VALUES ($1);`, [value]);
+      } catch (e) {
+        failed = true;
+      }
+      expect(failed).toBe(true);
+      failed = false;
+      try {
+        await db.any(`INSERT INTO customers (image) VALUES ($1);`, [value]);
+      } catch (e) {
+        failed = true;
+      }
+      expect(failed).toBe(true);
+    }
+  });
   it('valid url', async () => {
     for (let i = 0; i < validUrls.length; i++) {
       const value = validUrls[i];
