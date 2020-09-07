@@ -4,6 +4,7 @@ exports[`scheduled jobs schedule jobs 1`] = `
 Object {
   "attempts": 0,
   "id": "1",
+  "key": null,
   "last_error": null,
   "locked_at": null,
   "locked_by": null,

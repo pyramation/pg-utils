@@ -55,4 +55,63 @@ describe('scheduled jobs', () => {
     const { queue_name, run_at, created_at, updated_at, ...obj } = result;
     expect(obj).toMatchSnapshot();
   });
+  it('schedule jobs with keys', async () => {
+    // every minute starting in 10 seconds for 3 minutes
+    const start = new Date(Date.now() + 10000); // 10 seconds
+    const end = new Date(start.getTime() + 180000); // 3 minutes
+
+    const [result] = await app.callAny('add_scheduled_job', {
+        identifier: 'my_job',
+        payload: {
+          just: 'run it'
+        },
+        schedule_info: {
+          start,
+          end,
+          rule: '*/1 * * * *'
+        },
+        job_key: 'new_key',
+        queue_name: null,
+        max_attempts: 25,
+        priority: 0
+      },
+      {
+        identifier: 'text',
+        payload: 'json',
+        schedule_info: 'json',
+        job_key: 'text',
+        queue_name: 'text',
+        max_attempts: 'integer',
+        priority: 'integer'
+    });
+    const { queue_name, run_at, created_at, updated_at, schedule_info: sch, start: s1, end: d1, ...obj } = result;
+
+    const [result2] = await app.callAny('add_scheduled_job', {
+      identifier: 'my_job',
+      payload: {
+        just: 'run it'
+      },
+      schedule_info: {
+        start,
+        end,
+        rule: '*/1 * * * *'
+      },
+      job_key: 'new_key',
+      queue_name: null,
+      max_attempts: 25,
+      priority: 0
+    },
+    {
+      identifier: 'text',
+      payload: 'json',
+      schedule_info: 'json',
+      job_key: 'text',
+      queue_name: 'text',
+      max_attempts: 'integer',
+      priority: 'integer'
+    });
+    const { queue_name: qn, created_at: ca, updated_at: ua, schedule_info: sch2, start: s, end: e, ...obj2 } = result2;
+    console.log(obj);
+    console.log(obj2);
+  });
 });

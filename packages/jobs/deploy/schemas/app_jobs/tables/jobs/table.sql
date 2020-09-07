@@ -11,13 +11,16 @@ CREATE TABLE app_jobs.jobs (
   run_at timestamptz DEFAULT now() NOT NULL,
   attempts integer DEFAULT 0 NOT NULL,
   max_attempts integer DEFAULT 25 NOT NULL,
+  key text,
   last_error text,
   locked_at timestamptz,
   locked_by text,
+  CHECK (length(key) < 513),
   CHECK (length(task_identifier) < 127),
   CHECK (max_attempts > 0),
   CHECK (length(queue_name) < 127),
-  CHECK (length(locked_by) > 3)
+  CHECK (length(locked_by) > 3),
+  UNIQUE (key)
 );
 COMMIT;
 
