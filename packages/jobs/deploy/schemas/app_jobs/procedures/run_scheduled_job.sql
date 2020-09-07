@@ -36,13 +36,14 @@ BEGIN
     END IF;
   END IF;
   -- insert new job
-  INSERT INTO app_jobs.jobs (queue_name, task_identifier, payload, priority, max_attempts)
+  INSERT INTO app_jobs.jobs (queue_name, task_identifier, payload, priority, max_attempts, key)
   SELECT
     queue_name,
     task_identifier,
     payload,
     priority,
-    max_attempts
+    max_attempts,
+    key
   FROM
     app_jobs.scheduled_jobs s
   WHERE
