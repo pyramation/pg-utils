@@ -11,4 +11,6 @@ ssh:
 install:
 	docker exec pg-utils-postgres /sql-extensions/install.sh
 
+deploy:
+	lql deploy --recursive --yes --createdb --project launchql-extension-jobs --database jobs
   
