@@ -8,8 +8,7 @@ CREATE TABLE measurements.quantities (
     id serial PRIMARY KEY,
     name text,
     label text,
-    symbol text,
-    unit_short_desc text,
+    unit text,
     unit_desc text,
     description text
 );
