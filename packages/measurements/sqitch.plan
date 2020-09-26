@@ -1,0 +1,7 @@
+%syntax-version=1.0.0
+%project=measurements
+%uri=measurements
+  
+schemas/measurements/schema 2020-09-25T23:26:26Z Dan Lynch <dlynch@Dans-MBP-3> # add schemas/measurements/schema
+schemas/measurements/tables/quantities/table [schemas/measurements/schema] 2020-09-25T23:26:47Z Dan Lynch <dlynch@Dans-MBP-3> # add schemas/measurements/tables/quantities/table
+schemas/measurements/tables/quantities/fixtures/1601076414018_fixture [schemas/measurements/schema schemas/measurements/tables/quantities/table] 2020-09-25T23:26:54Z Dan Lynch <dlynch@Dans-MBP-3> # add schemas/measurements/tables/quantities/fixtures/1601076414018_fixture
