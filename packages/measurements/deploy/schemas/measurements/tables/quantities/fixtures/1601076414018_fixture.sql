@@ -5,6 +5,8 @@
 
 BEGIN;
 
+-- https://en.wikipedia.org/wiki/International_System_of_Units
+-- https://en.wikipedia.org/wiki/SI_derived_unit
 
 INSERT INTO measurements.quantities (id, name, label, unit, unit_desc, description) VALUES
  (1, 'Acceleration', 'Acceleration', 'm/s²', 'meter per square second', 'the rate of change of velocity with respect to time'),
@@ -51,5 +53,5 @@ INSERT INTO measurements.quantities (id, name, label, unit, unit_desc, descripti
  (42, 'Volume', 'Volume', 'm³', 'cubic meter', 'the amount of space occupied by a three-dimensional object or region of space, expressed in cubic units'),
  (43, 'VolumetricDensity', 'Volumetric Density', 'kg/m³', 'kilogram per cubic meter', 'a mass per unit volume of a substance under specified conditions of pressure and temperature'),
  (44, 'VolumetricFlowRate', 'Volumetric Flow Rate', 'm³/s', 'cubic meter per second', 'the volume of fluid passing a point in a system per unit of time');
- 
+
 COMMIT;
